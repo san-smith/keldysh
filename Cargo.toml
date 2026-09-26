@@ -1,0 +1,8 @@
+[package]
+name = "keldysh"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Bootstrap crate for the Keldysh deterministic simulation framework"
+
+[dependencies]
