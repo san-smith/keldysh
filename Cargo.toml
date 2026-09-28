@@ -1,9 +1,13 @@
-[package]
-name = "keldysh"
-version = "0.1.0"
-edition = "2021"
-publish = false
-license = "MIT OR Apache-2.0"
-description = "Bootstrap crate for the Keldysh deterministic simulation framework"
+[workspace]
+resolver = "3"
+members = ["crates/core"]
 
-[dependencies]
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+rust-version = "1.92.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
