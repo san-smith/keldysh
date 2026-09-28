@@ -1,12 +1,12 @@
 //! Keldysh core: the deterministic foundation of the step-simulation
 //! framework.
 //!
-//! This crate hosts the engine-level primitives every simulation on
-//! Keldysh shares: the named RNG streams of the `rng-streams-v1`
-//! strategy (ADR-0005). The game-facing step contract — states,
-//! commands, events, the phase order — is built on top of these
-//! primitives by the following stories; nothing here knows about any
-//! specific game.
+//! This crate hosts the deterministic step machinery every simulation
+//! on Keldysh shares: the named RNG streams of the `rng-streams-v1`
+//! strategy (ADR-0005) and the step contract — the [`Rules`] trait with
+//! its declared [`Phase`] sequence and the [`step`] engine executing
+//! phases in the declared order. Nothing here knows about any specific
+//! game.
 //!
 //! # Invariants
 //!
@@ -42,6 +42,8 @@
 
 mod fnv;
 mod rng;
+mod step;
 
 pub use fnv::fnv1a64;
 pub use rng::{RNG_STRATEGY, RngStreams};
+pub use step::{Phase, Rules, RulesVersion, StepError, StepOutcome, step};
