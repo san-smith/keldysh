@@ -6,7 +6,7 @@ Reusable deterministic simulation framework in Rust. The intended scope is step 
 
 A Cargo workspace. Crates appear when there is real content, never as placeholder APIs.
 
-- `crates/core` (`keldysh-core`) — the deterministic foundation: named RNG streams of the `rng-streams-v1` strategy (ADR-0005 in the project documentation — ChaCha8 generators derived from a party seed and a stream name, locality and re-entrancy by construction) and the shared integer hashing primitive (FNV-1a 64). The game-facing step contract builds on these primitives.
+- `crates/core` (`keldysh-core`) — the deterministic foundation and the step contract: named RNG streams of the `rng-streams-v1` strategy (ChaCha8 generators derived from a party seed and a stream name), the shared FNV-1a 64 hashing primitive, and the `Rules` trait with the `step` engine — the game declares its phases and logic, the framework executes them in the declared order with per-phase RNG streams, collected events, and a phase-fingerprinted rules version that cannot drift from the declaration.
 
 Replay, snapshots, and the deterministic test harness are extracted when their content arrives.
 
