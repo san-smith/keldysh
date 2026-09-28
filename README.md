@@ -2,9 +2,24 @@
 
 Reusable deterministic simulation framework in Rust. The intended scope is step execution, stable ordering, generic commands and events, replay, snapshots, and deterministic test support. Game rules and planetary geography belong to other repositories.
 
-This repository currently contains a bootstrap crate with no public API. Crate-level documentation will describe the framework's boundaries and public API as the implementation develops.
+## Layout
 
-Run `cargo test` from this directory once a Rust toolchain is installed.
+A Cargo workspace. Crates appear when there is real content, never as placeholder APIs.
+
+- `crates/core` (`keldysh-core`) — the deterministic foundation: named RNG streams of the `rng-streams-v1` strategy (ADR-0005 in the project documentation — ChaCha8 generators derived from a party seed and a stream name, locality and re-entrancy by construction) and the shared integer hashing primitive (FNV-1a 64). The game-facing step contract builds on these primitives.
+
+Replay, snapshots, and the deterministic test harness are extracted when their content arrives.
+
+## Commands
+
+Run from the repository root:
+
+```bash
+cargo build
+cargo test
+cargo fmt --check
+cargo clippy -- -D warnings
+```
 
 ## License
 
