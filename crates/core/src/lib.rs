@@ -41,9 +41,11 @@
 //! layout or the name semantics changes the strategy tag.
 
 mod fnv;
+mod orders;
 mod rng;
 mod step;
 
 pub use fnv::fnv1a64;
+pub use orders::{CommandEnvelope, CommandOrderError, IdempotencyId, PlayerId, canonical_order};
 pub use rng::{RNG_STRATEGY, RngStreams};
 pub use step::{Phase, Rules, RulesVersion, StepError, StepOutcome, step};
