@@ -51,6 +51,7 @@
 //!     value: u64,
 //! }
 //!
+//! #[derive(Debug, PartialEq, Eq)]
 //! enum Command {
 //!     Add(u64),
 //! }
@@ -91,7 +92,7 @@
 //!         &self,
 //!         phase: &'static Phase,
 //!         state: &mut CounterState,
-//!         commands: &[Command],
+//!         commands: &[&Command],
 //!         rng: &mut ChaCha8Rng,
 //!         events: &mut Vec<Event>,
 //!     ) -> Result<(), Never> {
@@ -100,7 +101,7 @@
 //!                 for command in commands {
 //!                     let Command::Add(amount) = command;
 //!                     let bonus = rng.next_u64() % 3;
-//!                     state.value += amount + bonus;
+//!                     state.value += *amount + bonus;
 //!                     events.push(Event::Applied { amount: *amount, bonus });
 //!                 }
 //!             }
@@ -112,9 +113,21 @@
 //! }
 //!
 //! let mut state = CounterState { value: 0 };
+//! let envelopes = [Command::Add(5), Command::Add(7)]
+//!     .into_iter()
+//!     .enumerate()
+//!     .map(|(index, payload)| keldysh_core::CommandEnvelope {
+//!         player: keldysh_core::PlayerId(1),
+//!         target_step: 0,
+//!         idempotency: keldysh_core::IdempotencyId(index as u64 + 1),
+//!         payload,
+//!     })
+//!     .collect::<Vec<_>>();
+//!
 //! let outcome = step(
 //!     &mut state,
-//!     &[Command::Add(5), Command::Add(7)],
+//!     0,
+//!     &envelopes,
 //!     &CounterRules,
 //!     &RngStreams::new(42),
 //! )?;
@@ -129,6 +142,7 @@
 use rand_chacha::ChaCha8Rng;
 
 use crate::fnv::fnv1a64;
+use crate::orders::{CommandEnvelope, CommandOrderError, canonical_order};
 use crate::rng::RngStreams;
 
 /// A named phase of the step: one entry of the declared sequence.
@@ -204,8 +218,10 @@ fn phase_fingerprint(phases: &[Phase]) -> u64 {
 pub trait Rules {
     /// The simulation state the phases mutate.
     type State;
-    /// A command of the simulation.
-    type Command;
+    /// A command of the simulation. Comparable by value: the canonical
+    /// ordering collapses identical redeliveries and rejects
+    /// conflicting ones by comparing payloads.
+    type Command: PartialEq;
     /// An event the rules record for the journal and UI.
     type Event;
     /// The error the rules can fail with.
@@ -228,7 +244,7 @@ pub trait Rules {
         &self,
         phase: &'static Phase,
         state: &mut Self::State,
-        commands: &[Self::Command],
+        commands: &[&Self::Command],
         rng: &mut ChaCha8Rng,
         events: &mut Vec<Self::Event>,
     ) -> Result<(), Self::Error>;
@@ -259,6 +275,8 @@ pub enum StepError<RuleError> {
         phase: &'static str,
         error: RuleError,
     },
+    /// The command envelopes failed their canonical ordering.
+    CommandOrder(CommandOrderError),
 }
 
 impl<RuleError: std::fmt::Display> std::fmt::Display for StepError<RuleError> {
@@ -276,6 +294,7 @@ impl<RuleError: std::fmt::Display> std::fmt::Display for StepError<RuleError> {
             StepError::Phase { phase, error } => {
                 write!(f, "phase {phase:?} failed: {error}")
             }
+            StepError::CommandOrder(error) => write!(f, "command ordering failed: {error}"),
         }
     }
 }
@@ -301,10 +320,17 @@ where
 /// phase's entry — the step does not roll back.
 pub fn step<R: Rules>(
     state: &mut R::State,
-    commands: &[R::Command],
+    current_step: u64,
+    envelopes: &[CommandEnvelope<R::Command>],
     rules: &R,
     streams: &RngStreams,
 ) -> Result<StepOutcome<R::Event>, StepError<R::Error>> {
+    // The canonical ordering is the framework's guarantee: the phases
+    // always see the payloads in the one true order, whatever the
+    // delivery order was.
+    let ordered = canonical_order(envelopes, current_step).map_err(StepError::CommandOrder)?;
+    let commands: Vec<&R::Command> = ordered.iter().map(|envelope| &envelope.payload).collect();
+    let commands = commands.as_slice();
     let phases = rules.phases();
     let mut seen: Vec<&'static str> = Vec::new();
     for phase in phases {

@@ -2,7 +2,10 @@
 //! the fail-fast errors, and the determinism of the engine, exercised
 //! through a minimal two-phase counter rules implementation.
 
-use keldysh_core::{Phase, RngStreams, Rules, RulesVersion, StepError, step};
+use keldysh_core::{
+    CommandEnvelope, IdempotencyId, Phase, PlayerId, RngStreams, Rules, RulesVersion, StepError,
+    step,
+};
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::RngCore;
 
@@ -80,7 +83,7 @@ impl Rules for CounterRules {
         &self,
         phase: &'static Phase,
         state: &mut CounterState,
-        commands: &[Command],
+        commands: &[&Command],
         rng: &mut ChaCha8Rng,
         events: &mut Vec<Event>,
     ) -> Result<(), SpendOverflow> {
@@ -89,7 +92,7 @@ impl Rules for CounterRules {
                 for command in commands {
                     let Command::Add(amount) = command;
                     let bonus = rng.next_u64() % 3;
-                    state.value += amount + bonus;
+                    state.value += *amount + bonus;
                     events.push(Event::Applied {
                         amount: *amount,
                         bonus,
@@ -111,13 +114,30 @@ impl Rules for CounterRules {
 }
 
 /// Runs one step and returns the recorded events with the raw outcome.
+///
+/// The bare payloads are wrapped into canonical envelopes: player 1,
+/// target step 0, idempotency in delivery order.
 fn run(
     rules: &CounterRules,
     commands: &[Command],
 ) -> Result<(Vec<Event>, keldysh_core::StepOutcome<Event>), StepError<SpendOverflow>> {
+    let envelopes = wrap(commands);
     let mut state = CounterState { value: 0 };
-    let outcome = step(&mut state, commands, rules, &RngStreams::new(42))?;
+    let outcome = step(&mut state, 0, &envelopes, rules, &RngStreams::new(42))?;
     Ok((outcome.events.clone(), outcome))
+}
+
+fn wrap(commands: &[Command]) -> Vec<CommandEnvelope<Command>> {
+    commands
+        .iter()
+        .enumerate()
+        .map(|(index, payload)| CommandEnvelope {
+            player: PlayerId(1),
+            target_step: 0,
+            idempotency: IdempotencyId(index as u64 + 1),
+            payload: *payload,
+        })
+        .collect()
 }
 
 #[test]
