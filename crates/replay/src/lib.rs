@@ -19,6 +19,10 @@
 //! - A foreign rules version and a foreign starting state are
 //!   rejected before the first step; the first divergent checkpoint
 //!   aborts the replay with both hashes (ADR-0002 §5.5–5.6).
+//! - The snapshot ([`snapshot`]) is the state's container, not the
+//!   session's: the header's rules version and state hash reject
+//!   foreign rules and corrupted payloads; the party seed stays with
+//!   the game's save format.
 //!
 //! # Example
 //!
@@ -99,6 +103,7 @@
 //! ```
 
 mod record;
+pub mod snapshot;
 mod verify;
 
 pub use record::{Checkpoints, Recording, ReplayRecord};

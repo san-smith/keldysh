@@ -189,6 +189,16 @@ impl RulesVersion {
         }
     }
 
+    /// Reassembles a version from its serialized parts — the
+    /// fingerprint and the revision, as the replay records and the
+    /// snapshots carry them.
+    pub fn from_parts(phase_fingerprint: u64, revision: u64) -> Self {
+        Self {
+            phase_fingerprint,
+            revision,
+        }
+    }
+
     /// The fingerprint of the declared phase sequence.
     pub fn phase_fingerprint(&self) -> u64 {
         self.phase_fingerprint
@@ -380,4 +390,18 @@ pub fn step<R: Rules>(
         version,
         phases: executed,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_parts_roundtrips_a_declared_version() {
+        let phases = [Phase { name: "apply" }, Phase { name: "settle" }];
+        let declared = RulesVersion::declaring(7, &phases);
+        let restored = RulesVersion::from_parts(declared.phase_fingerprint(), declared.revision());
+        assert_eq!(declared, restored, "the parts carry the whole identity");
+        assert_eq!(restored.to_string(), declared.to_string());
+    }
 }

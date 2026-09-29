@@ -4,7 +4,7 @@ Keldysh is a reusable, deterministic, step-based simulation framework in Rust. I
 
 ## Status
 
-A Cargo workspace: `crates/core` (`keldysh-core`) hosts the deterministic foundation — named RNG streams of the `rng-streams-v1` strategy (ADR-0005), the shared FNV-1a 64 hashing primitive, the step contract (`Rules` and the `step` engine), command envelopes with canonical ordering, the canonical state hash (`CanonicalState`), and the event journal (`EventJournal`) — and `crates/replay` (`keldysh-replay`) records and verifies party replays (ADR-0002 §5.3, §5.5–5.6). The core stories of E-02 and the replay story (E-03 S-01) are complete; `crates/testkit` is extracted when its content arrives (E-03 S-03). Keep the root buildable and testable at every commit.
+A Cargo workspace: `crates/core` (`keldysh-core`) hosts the deterministic foundation — named RNG streams of the `rng-streams-v1` strategy (ADR-0005), the shared FNV-1a 64 hashing primitive, the step contract (`Rules` and the `step` engine), command envelopes with canonical ordering, the canonical state hash (`CanonicalState`), and the event journal (`EventJournal`) — and `crates/replay` (`keldysh-replay`) records and verifies party replays and owns the snapshot format (ADR-0002 §5.3, §5.5–5.6). The core stories of E-02 and the replay/snapshot stories (E-03 S-01, S-02) are complete; `crates/testkit` is extracted when its content arrives (E-03 S-03). Keep the root buildable and testable at every commit.
 
 ## Commands
 
