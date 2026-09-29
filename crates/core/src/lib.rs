@@ -22,6 +22,9 @@
 //! - Every state is canonically serializable ([`CanonicalState`]): the
 //!   canonical hash ([`CanonicalState::state_hash`]) detects drift
 //!   between runs at the checkpoint steps the consumer chooses.
+//! - Events are a projection, never an input: the engine returns them
+//!   per step and never reads the journal ([`EventJournal`]) — the state
+//!   stays the source of truth.
 //!
 //! # Example
 //!
@@ -44,12 +47,14 @@
 //! layout or the name semantics changes the strategy tag.
 
 mod fnv;
+mod journal;
 mod orders;
 mod rng;
 mod state;
 mod step;
 
 pub use fnv::fnv1a64;
+pub use journal::{EventJournal, JournalError, StepEvents};
 pub use orders::{CommandEnvelope, CommandOrderError, IdempotencyId, PlayerId, canonical_order};
 pub use rng::{RNG_STRATEGY, RngStreams};
 pub use state::{CanonicalState, put_i64, put_len_prefixed, put_seq_len, put_u64};
