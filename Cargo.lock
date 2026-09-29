@@ -36,6 +36,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "keldysh-testkit"
+version = "0.1.0"
+dependencies = [
+ "keldysh-core",
+ "rand_chacha",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
