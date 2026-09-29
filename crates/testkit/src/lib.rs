@@ -1,3 +1,7 @@
+//! This crate owns its share of the Keldysh contract — the determinism
+//! harness. The invariants, the version model, and what breaks a replay are
+//! documented in the [`keldysh_core`] crate documentation.
+//!
 //! The determinism test harness of the Keldysh framework.
 //!
 //! Every determinism guarantee needs a test: same inputs, two runs,

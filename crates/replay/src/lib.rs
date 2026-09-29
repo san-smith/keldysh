@@ -1,3 +1,7 @@
+//! This crate owns its share of the Keldysh contract — replay recording,
+//! verification, and snapshots. The invariants, the version model, and what
+//! breaks a replay are documented in the [`keldysh_core`] crate documentation.
+//!
 //! Replay recording and verification for the Keldysh framework.
 //!
 //! A replay record is everything a party's verification needs apart
