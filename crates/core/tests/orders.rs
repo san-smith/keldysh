@@ -5,8 +5,8 @@
 use rand_chacha::ChaCha8Rng;
 
 use keldysh_core::{
-    CommandEnvelope, IdempotencyId, Phase, PlayerId, RngStreams, Rules, RulesVersion,
-    canonical_order, step,
+    CanonicalState, CommandEnvelope, IdempotencyId, Phase, PlayerId, RngStreams, Rules,
+    RulesVersion, canonical_order, put_u64, step,
 };
 
 /// A demo payload: the actor and the amount, so the attribution and
@@ -19,6 +19,12 @@ struct DemoCommand {
 
 struct DemoState {
     total: u64,
+}
+
+impl CanonicalState for DemoState {
+    fn write_canonical(&self, out: &mut Vec<u8>) {
+        put_u64(out, self.total);
+    }
 }
 
 struct DemoRules;

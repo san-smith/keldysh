@@ -41,7 +41,7 @@
 //! "settle" phase records the closing event.
 //!
 //! ```
-//! use keldysh_core::{step, Phase, Rules, RulesVersion, RngStreams};
+//! use keldysh_core::{step, CanonicalState, Phase, Rules, RulesVersion, RngStreams, put_u64};
 //! use rand_chacha::rand_core::RngCore;
 //! use rand_chacha::ChaCha8Rng;
 //!
@@ -49,6 +49,12 @@
 //!
 //! struct CounterState {
 //!     value: u64,
+//! }
+//!
+//! impl CanonicalState for CounterState {
+//!     fn write_canonical(&self, out: &mut Vec<u8>) {
+//!         put_u64(out, self.value);
+//!     }
 //! }
 //!
 //! #[derive(Debug, PartialEq, Eq)]
@@ -135,6 +141,10 @@
 //! // Each phase stream bonus is 0..3, deterministic per phase name.
 //! assert!((12..=16).contains(&state.value), "two additions plus two bonuses");
 //! assert_eq!(outcome.events.len(), 3, "two applications and the settle");
+//!
+//! // The state is checkpoint-hashable by construction: the game calls
+//! // `state_hash` at the steps it wants to compare across runs.
+//! assert_ne!(state.state_hash(), 0, "the digest covers the canonical bytes");
 //! # Ok::<(), keldysh_core::StepError<Never>>(())
 //! ```
 //!
@@ -144,6 +154,7 @@ use rand_chacha::ChaCha8Rng;
 use crate::fnv::fnv1a64;
 use crate::orders::{CommandEnvelope, CommandOrderError, canonical_order};
 use crate::rng::RngStreams;
+use crate::state::CanonicalState;
 
 /// A named phase of the step: one entry of the declared sequence.
 ///
@@ -216,8 +227,11 @@ fn phase_fingerprint(phases: &[Phase]) -> u64 {
 /// one its own RNG stream; the rules own the state transitions, the
 /// command semantics, and the events.
 pub trait Rules {
-    /// The simulation state the phases mutate.
-    type State;
+    /// The simulation state the phases mutate. Canonically
+    /// serializable ([`CanonicalState`]): every Keldysh state is
+    /// checkpoint-hashable by construction (ADR-0002 §5.5); the game
+    /// computes the hash at its checkpoint steps.
+    type State: CanonicalState;
     /// A command of the simulation. Comparable by value: the canonical
     /// ordering collapses identical redeliveries and rejects
     /// conflicting ones by comparing payloads.

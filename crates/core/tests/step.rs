@@ -3,14 +3,20 @@
 //! through a minimal two-phase counter rules implementation.
 
 use keldysh_core::{
-    CommandEnvelope, IdempotencyId, Phase, PlayerId, RngStreams, Rules, RulesVersion, StepError,
-    step,
+    CanonicalState, CommandEnvelope, IdempotencyId, Phase, PlayerId, RngStreams, Rules,
+    RulesVersion, StepError, put_u64, step,
 };
 use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::RngCore;
 
 struct CounterState {
     value: u64,
+}
+
+impl CanonicalState for CounterState {
+    fn write_canonical(&self, out: &mut Vec<u8>) {
+        put_u64(out, self.value);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -19,6 +19,9 @@
 //! - No platform-dependent floating point in simulation state or logic;
 //!   hashing and seed derivation are pure integer arithmetic (FNV-1a 64,
 //!   shared with the canonical state hash).
+//! - Every state is canonically serializable ([`CanonicalState`]): the
+//!   canonical hash ([`CanonicalState::state_hash`]) detects drift
+//!   between runs at the checkpoint steps the consumer chooses.
 //!
 //! # Example
 //!
@@ -43,9 +46,11 @@
 mod fnv;
 mod orders;
 mod rng;
+mod state;
 mod step;
 
 pub use fnv::fnv1a64;
 pub use orders::{CommandEnvelope, CommandOrderError, IdempotencyId, PlayerId, canonical_order};
 pub use rng::{RNG_STRATEGY, RngStreams};
+pub use state::{CanonicalState, put_i64, put_len_prefixed, put_seq_len, put_u64};
 pub use step::{Phase, Rules, RulesVersion, StepError, StepOutcome, step};
