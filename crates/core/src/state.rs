@@ -70,6 +70,8 @@
 //! );
 //! ```
 
+use std::fmt;
+
 use crate::fnv::fnv1a64;
 
 /// Writes `value` as fixed-width little-endian bytes.
@@ -125,6 +127,125 @@ pub trait CanonicalState {
     }
 }
 
+/// Why canonical bytes could not be read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CanonicalReadError {
+    /// The bytes ended before `needed` more bytes at `offset`.
+    UnexpectedEnd {
+        /// The position the read started at.
+        offset: usize,
+        /// The number of bytes the read required.
+        needed: usize,
+    },
+    /// A length field exceeded what the platform's `usize` can hold.
+    LengthTooLarge {
+        /// The position the length was read at.
+        offset: usize,
+        /// The rejected length.
+        length: u64,
+    },
+}
+
+impl fmt::Display for CanonicalReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CanonicalReadError::UnexpectedEnd { offset, needed } => write!(
+                f,
+                "the canonical bytes end at offset {offset}: {needed} more bytes required"
+            ),
+            CanonicalReadError::LengthTooLarge { offset, length } => write!(
+                f,
+                "length {length} at offset {offset} exceeds the platform's addressable size"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CanonicalReadError {}
+
+/// The reading side of the canonical encoding: a cursor over the
+/// bytes the [`put_*`](put_u64) helpers wrote.
+///
+/// The methods mirror the writers one to one — the same discipline
+/// serves the state hash and the snapshots. Errors carry the offset
+/// the failed read started at.
+pub struct CanonicalReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> CanonicalReader<'a> {
+    /// Reads the canonical bytes from their beginning.
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    /// The position of the cursor: the number of bytes consumed.
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    /// Whether every byte has been consumed; the reader of a complete
+    /// encoding ends empty.
+    pub fn is_empty(&self) -> bool {
+        self.offset >= self.bytes.len()
+    }
+
+    /// Reads `n` raw bytes.
+    pub fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], CanonicalReadError> {
+        let end = self
+            .offset
+            .checked_add(n)
+            .filter(|&end| end <= self.bytes.len());
+        let end = match end {
+            Some(end) => end,
+            None => {
+                return Err(CanonicalReadError::UnexpectedEnd {
+                    offset: self.offset,
+                    needed: n,
+                });
+            }
+        };
+        let bytes = &self.bytes[self.offset..end];
+        self.offset = end;
+        Ok(bytes)
+    }
+
+    /// Reads a fixed-width little-endian integer.
+    pub fn read_u64(&mut self) -> Result<u64, CanonicalReadError> {
+        let bytes = self.read_bytes(8)?;
+        Ok(u64::from_le_bytes(bytes.try_into().expect("eight bytes")))
+    }
+
+    /// Reads a two's-complement little-endian integer.
+    pub fn read_i64(&mut self) -> Result<i64, CanonicalReadError> {
+        let bytes = self.read_bytes(8)?;
+        Ok(i64::from_le_bytes(bytes.try_into().expect("eight bytes")))
+    }
+
+    /// Reads a length-prefixed byte string: the u64 little-endian
+    /// length, then the bytes.
+    pub fn read_len_prefixed(&mut self) -> Result<&'a [u8], CanonicalReadError> {
+        let offset = self.offset;
+        let len = self.read_u64()?;
+        let len = usize::try_from(len).map_err(|_| CanonicalReadError::LengthTooLarge {
+            offset,
+            length: len,
+        })?;
+        self.read_bytes(len)
+    }
+
+    /// Reads the element count of a sequence.
+    pub fn read_seq_len(&mut self) -> Result<usize, CanonicalReadError> {
+        let offset = self.offset;
+        let len = self.read_u64()?;
+        usize::try_from(len).map_err(|_| CanonicalReadError::LengthTooLarge {
+            offset,
+            length: len,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,5 +282,51 @@ mod tests {
     #[test]
     fn empty_serialization_hashes_to_the_offset_basis() {
         assert_eq!(Empty.state_hash(), 0xcbf2_9ce4_8422_2325);
+    }
+
+    #[test]
+    fn the_reader_mirrors_the_writers() {
+        let mut out = Vec::new();
+        put_u64(&mut out, 0x0123_4567_89ab_cdef);
+        put_i64(&mut out, -2);
+        put_len_prefixed(&mut out, b"payload");
+        put_seq_len(&mut out, 42);
+
+        let mut reader = CanonicalReader::new(&out);
+        assert_eq!(reader.read_u64().unwrap(), 0x0123_4567_89ab_cdef);
+        assert_eq!(reader.read_i64().unwrap(), -2);
+        assert_eq!(reader.read_len_prefixed().unwrap(), b"payload");
+        assert_eq!(reader.read_seq_len().unwrap(), 42);
+        assert!(
+            reader.is_empty(),
+            "a complete encoding leaves no unread bytes"
+        );
+    }
+
+    #[test]
+    fn truncation_is_reported_at_the_offset() {
+        let mut out = Vec::new();
+        put_u64(&mut out, 1);
+        put_len_prefixed(&mut out, b"abc");
+
+        let mut reader = CanonicalReader::new(&out[..11]);
+        assert_eq!(reader.read_u64().unwrap(), 1);
+        // The length field itself cannot be read: 3 bytes remain, 8
+        // are required.
+        assert_eq!(
+            reader.read_len_prefixed().unwrap_err(),
+            CanonicalReadError::UnexpectedEnd {
+                offset: 8,
+                needed: 8
+            }
+        );
+        assert_eq!(
+            CanonicalReadError::UnexpectedEnd {
+                offset: 8,
+                needed: 8
+            }
+            .to_string(),
+            "the canonical bytes end at offset 8: 8 more bytes required"
+        );
     }
 }
